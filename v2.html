@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="he">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>המסך המפוצל הישראלי</title>
+    <style>
+        body {
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            font-family: sans-serif;
+        }
+        #channelButtons {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            padding: 20px;
+            justify-content: center;
+        }
+        #channelButtons button {
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        video {
+            width: 80%;
+            height: auto;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="channelButtons"></div>
+    <video id="videoPlayer" controls playsinline autoplay></video>
+
+    <script src="//cdn.jsdelivr.net/npm/hls.js@latest/dist/hls.min.js"></script>
+    <script>
+        const sources = [
+            'https://reshet.g-mana.live/media/87f59c77-03f6-4bad-a648-897e095e7360/mainManifest.m3u8',
+            'https://d1zqtf09wb8nt5.cloudfront.net/livehls/oil/freetv/live/keshet_12_hevc/live.livx/playlist.m3u8?fmp4&renditions&dvr=14400000',
+            'https://kan11w.media.kan.org.il/hls/live/2105694/2105694/master.m3u8',
+            'https://r.il.cdn-redge.media/livehls/oil/calcala/live/channel10/live.livx/playlist.m3u8?dvr=14400000',
+            'https://bcovlive-a.akamaihd.net/d89ede8094c741b7924120b27764153c/eu-central-1/5377161796001/playlist.m3u8',
+            'https://channel14-live-consume.immergo.tv/output/2/streamPlaylist-archive.m3u8',
+        ];
+
+        const channelNames = [
+            'רשת 13',
+            'קשת 12',
+            'כאן 11',
+            'ערוץ הכלכלה',
+            'i24News',
+            'עכשיו 14'
+        ];
+
+        const videoPlayer = document.getElementById('videoPlayer');
+        const buttonContainer = document.getElementById('channelButtons');
+
+        channelNames.forEach((name, index) => {
+            const btn = document.createElement('button');
+            btn.textContent = name;
+            btn.addEventListener('click', () => {
+                const selectedSource = sources[index];
+                if (Hls.isSupported()) {
+                    const hls = new Hls();
+                    hls.loadSource(selectedSource);
+                    hls.attachMedia(videoPlayer);
+                } else {
+                    videoPlayer.src = selectedSource;
+                }
+            });
+            buttonContainer.appendChild(btn);
+        });
+    </script>
+</body>
+</html>
