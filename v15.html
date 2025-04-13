@@ -24,6 +24,7 @@
       box-shadow: 0 2px 4px rgba(0,0,0,0.1);
     }
     .channel-btn {
+      position: relative;
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -33,10 +34,8 @@
       padding: 4px;
       font-size: 12px;
       cursor: pointer;
-      transition: background 0.2s;
       width: 120px;
       overflow: hidden;
-      position: relative;
     }
     .channel-btn:hover {
       background: #ddd;
@@ -51,10 +50,11 @@
     .progress-bar {
       position: absolute;
       top: 0;
-      right: 0;
-      height: 1px;
+      left: 0;
+      height: 2px;
       background-color: green;
       width: 100%;
+      transform-origin: left;
     }
     #videoWrapper {
       flex-grow: 1;
@@ -101,9 +101,8 @@
 
     const previews = [];
     const updateInterval = 10000; // 10 seconds
-    const placeholderImage = 'https://via.placeholder.com/160x90?text=Loading';
+    const placeholderImage = 'channel.jpg'; // <- Local placeholder
 
-    // Create channel buttons
     channelNames.forEach((name, index) => {
       const btn = document.createElement('div');
       btn.className = 'channel-btn';
@@ -136,7 +135,7 @@
         }
       });
 
-      previews.push({ img, index, progressBar: progress, lastUpdated: 0 });
+      previews.push({ img, index, progressBar: progress, lastUpdated: Date.now() });
     });
 
     async function generateThumbnail(index) {
@@ -146,31 +145,13 @@
         tempVideo.playsInline = true;
         tempVideo.crossOrigin = 'anonymous';
         tempVideo.style.display = 'none';
-
         document.body.appendChild(tempVideo);
+
         const hls = new Hls({ autoStartLoad: true });
         hls.loadSource(sources[index]);
         hls.attachMedia(tempVideo);
 
         let done = false;
-
-        tempVideo.addEventListener('loadeddata', () => {
-          setTimeout(() => {
-            if (done) return;
-            try {
-              const w = 160, h = 90;
-              canvas.width = w;
-              canvas.height = h;
-              ctx.drawImage(tempVideo, 0, 0, w, h);
-              const dataURL = canvas.toDataURL('image/jpeg');
-              previews[index].img.src = dataURL;
-              previews[index].lastUpdated = Date.now();
-            } catch (err) {
-              console.warn("Thumbnail failed for channel", index);
-            }
-            cleanup();
-          }, 800); // Short delay to allow video frame to load
-        });
 
         const cleanup = () => {
           if (done) return;
@@ -181,15 +162,31 @@
           resolve();
         };
 
+        tempVideo.addEventListener('loadeddata', () => {
+          setTimeout(() => {
+            try {
+              const w = 160, h = 90;
+              canvas.width = w;
+              canvas.height = h;
+              ctx.drawImage(tempVideo, 0, 0, w, h);
+              const dataURL = canvas.toDataURL('image/jpeg');
+              previews[index].img.src = dataURL;
+              previews[index].lastUpdated = Date.now();
+              previews[index].progressBar.style.transform = 'scaleX(1)';
+            } catch (err) {
+              console.warn("Thumbnail failed", index);
+            }
+            cleanup();
+          }, 500);
+        });
+
         tempVideo.addEventListener('error', cleanup);
         setTimeout(cleanup, 5000);
       });
     }
 
-    async function generateAllThumbnails() {
-      const now = Date.now();
+    async function updateThumbnailsSequentially() {
       for (let i = 0; i < previews.length; i++) {
-        previews[i].lastUpdated = now;
         await generateThumbnail(i);
       }
     }
@@ -198,19 +195,20 @@
       const now = Date.now();
       previews.forEach(preview => {
         const elapsed = now - preview.lastUpdated;
-        const ratio = 1 - Math.min(1, elapsed / updateInterval);
-        preview.progressBar.style.width = `${100 * ratio}%`;
+        const ratio = Math.max(0, 1 - elapsed / updateInterval);
+        preview.progressBar.style.transform = `scaleX(${ratio})`;
       });
     }
 
-    function startThumbnailLoop() {
-      setTimeout(async () => {
-        await generateAllThumbnails();
-        setInterval(generateAllThumbnails, updateInterval);
-      }, 1000); // Initial delay for smooth startup
+    function scheduleThumbnailUpdates() {
+      setInterval(async () => {
+        await updateThumbnailsSequentially();
+      }, updateInterval);
     }
 
-    setInterval(updateProgressBars, 100); // Smooth progress bar updates
+    setInterval(updateProgressBars, 100);
+    scheduleThumbnailUpdates();
+    updateThumbnailsSequentially();
 
     function scaleVideo() {
       const padding = 40;
@@ -228,8 +226,6 @@
 
     videoPlayer.addEventListener('loadedmetadata', scaleVideo);
     window.addEventListener('resize', scaleVideo);
-
-    startThumbnailLoop();
   </script>
 
 </body>
