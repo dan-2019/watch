@@ -1,20 +1,241 @@
-.channel-btn {
-    position: relative;
-}
+<!DOCTYPE html>
+<html lang="he">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>המסך המפוצל הישראלי</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      font-family: sans-serif;
+      background: #f8f8f8;
+    }
+    #channelButtons {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      padding: 10px;
+      justify-content: center;
+      background: #fff;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .channel-btn {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      border: 1px solid #ccc;
+      background: #eee;
+      border-radius: 4px;
+      padding: 4px;
+      font-size: 12px;
+      cursor: pointer;
+      transition: background 0.2s;
+      width: 120px;
+      overflow: hidden;
+      position: relative;
+    }
+    .channel-btn:hover {
+      background: #ddd;
+    }
+    .thumbnail {
+      width: 100%;
+      height: 67px;
+      object-fit: cover;
+      background: #bbb url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAAqUlEQVR4Xu3XQQ0AIAwDQaT+6/80WQMklvQnBJ8StwIECBQoUKFChQkDg3gXOq+y9+g+M7zYZc1cN8CoUKFChQoUKFChwF6kEB5V1X1D3tvlqFK1ChQoUKFChQoUPD9sFTgFux1gZPVkM59gOoUKFChQoUKFChwX4bAD5nFdbf8upff8AAAAASUVORK5CYII=') no-repeat center;
+      background-size: contain;
+      margin-bottom: 4px;
+    }
+    .status-dot {
+      position: absolute;
+      top: 4px;
+      right: 4px;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: gray;
+      border: 1px solid white;
+    }
+    #videoWrapper {
+      flex-grow: 1;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      overflow: hidden;
+      box-sizing: border-box;
+      width: 100%;
+    }
+    #videoPlayer {
+      display: block;
+    }
+    canvas {
+      display: none;
+    }
+  </style>
+</head>
+<body>
 
-.status-dot {
-    position: absolute;
-    top: 4px;
-    right: 4px;
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    background: gray;
-    border: 1px solid white;
-}
-.thumbnail {
-    width: 100%;
-    height: 67px;
-    background: #bbb url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAAqUlEQVR4Xu3XQQ0AIAwDQaT+6/80WQMklvQnBJ8StwIECBQoUKFChQkDg3gXOq+y9+g+M7zYZc1cN8CoUKFChQoUKFChwF6kEB5V1X1D3tvlqFK1ChQoUKFChQoUPD9sFTgFux1gZPVkM59gOoUKFChQoUKFChwX4bAD5nFdbf8upff8AAAAASUVORK5CYII=') no-repeat center;
-    background-size: contain;
-}
+  <div id="channelButtons"></div>
+  <div id="videoWrapper">
+    <video id="videoPlayer" controls playsinline autoplay></video>
+  </div>
+  <canvas id="thumbCanvas"></canvas>
+
+  <script src="//cdn.jsdelivr.net/npm/hls.js@latest/dist/hls.min.js"></script>
+  <script>
+    const sources = [
+      'https://reshet.g-mana.live/media/87f59c77-03f6-4bad-a648-897e095e7360/mainManifest.m3u8',
+      'https://d1zqtf09wb8nt5.cloudfront.net/livehls/oil/freetv/live/keshet_12_hevc/live.livx/playlist.m3u8?fmp4&renditions&dvr=14400000',
+      'https://kan11w.media.kan.org.il/hls/live/2105694/2105694/master.m3u8',
+      'https://r.il.cdn-redge.media/livehls/oil/calcala/live/channel10/live.livx/playlist.m3u8?dvr=14400000',
+      'https://bcovlive-a.akamaihd.net/d89ede8094c741b7924120b27764153c/eu-central-1/5377161796001/playlist.m3u8',
+      'https://channel14-live-consume.immergo.tv/output/2/streamPlaylist-archive.m3u8',
+    ];
+
+    const channelNames = ['רשת 13', 'קשת 12', 'כאן 11', 'ערוץ הכלכלה', 'i24News', 'עכשיו 14'];
+
+    const videoPlayer = document.getElementById('videoPlayer');
+    const buttonContainer = document.getElementById('channelButtons');
+    const canvas = document.getElementById('thumbCanvas');
+    const ctx = canvas.getContext('2d');
+
+    const previews = [];
+
+    // Create channel buttons
+    channelNames.forEach((name, index) => {
+      const btn = document.createElement('div');
+      btn.className = 'channel-btn';
+
+      const dot = document.createElement('div');
+      dot.className = 'status-dot';
+
+      const img = document.createElement('img');
+      img.className = 'thumbnail';
+      img.src = '';
+
+      const label = document.createElement('span');
+      label.textContent = name;
+
+      btn.appendChild(dot);
+      btn.appendChild(img);
+      btn.appendChild(label);
+      buttonContainer.appendChild(btn);
+
+      btn.addEventListener('click', () => {
+        if (Hls.isSupported()) {
+          const hls = new Hls();
+          hls.loadSource(sources[index]);
+          hls.attachMedia(videoPlayer);
+          hls.on(Hls.Events.MANIFEST_PARSED, () => {
+            videoPlayer.play();
+          });
+        } else {
+          videoPlayer.src = sources[index];
+        }
+      });
+
+      previews.push({ img, index, statusDot: dot, lastUpdated: 0 });
+    });
+
+    async function generateThumbnail(index) {
+      return new Promise((resolve) => {
+        const tempVideo = document.createElement('video');
+        tempVideo.muted = true;
+        tempVideo.playsInline = true;
+        tempVideo.crossOrigin = 'anonymous';
+        tempVideo.style.display = 'none';
+
+        document.body.appendChild(tempVideo);
+        const hls = new Hls({ autoStartLoad: true });
+        hls.loadSource(sources[index]);
+        hls.attachMedia(tempVideo);
+
+        let done = false;
+
+        tempVideo.addEventListener('loadeddata', () => {
+          setTimeout(() => {
+            if (done) return;
+            try {
+              const w = 160, h = 90;
+              canvas.width = w;
+              canvas.height = h;
+              ctx.drawImage(tempVideo, 0, 0, w, h);
+              const dataURL = canvas.toDataURL('image/jpeg');
+              previews[index].img.src = dataURL;
+              previews[index].lastUpdated = Date.now();
+              updateStatusDot(previews[index]);
+            } catch (err) {
+              console.warn("Thumbnail failed for channel", index);
+            }
+            cleanup();
+          }, 1000);
+        });
+
+        const cleanup = () => {
+          if (done) return;
+          done = true;
+          hls.destroy();
+          tempVideo.pause();
+          tempVideo.remove();
+          resolve();
+        };
+
+        tempVideo.addEventListener('error', cleanup);
+        setTimeout(cleanup, 5000);
+      });
+    }
+
+    async function generateAllThumbnails() {
+      for (let i = 0; i < previews.length; i++) {
+        await generateThumbnail(i);
+      }
+    }
+
+    function updateStatusDot(preview) {
+      const age = (Date.now() - preview.lastUpdated) / 1000;
+      const dot = preview.statusDot;
+      if (age < 20) {
+        dot.style.background = 'green';
+      } else if (age < 60) {
+        dot.style.background = 'orange';
+      } else {
+        dot.style.background = 'red';
+      }
+    }
+
+    function startThumbnailLoop() {
+      setTimeout(async () => {
+        await generateAllThumbnails();
+        setInterval(generateAllThumbnails, 30000); // every 30s
+      }, 2000);
+    }
+
+    setInterval(() => {
+      previews.forEach(updateStatusDot);
+    }, 5000);
+
+    function scaleVideo() {
+      const padding = 40;
+      const vw = videoWrapper.clientWidth - padding;
+      const vh = videoWrapper.clientHeight - padding;
+      const videoW = videoPlayer.videoWidth;
+      const videoH = videoPlayer.videoHeight;
+
+      if (videoW && videoH) {
+        const scale = Math.min(vw / videoW, vh / videoH);
+        videoPlayer.style.width = `${videoW * scale}px`;
+        videoPlayer.style.height = `${videoH * scale}px`;
+      }
+    }
+
+    videoPlayer.addEventListener('loadedmetadata', scaleVideo);
+    window.addEventListener('resize', scaleVideo);
+
+    startThumbnailLoop();
+  </script>
+
+</body>
+</html>
