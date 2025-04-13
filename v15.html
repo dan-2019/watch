@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="he">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>המסך המפוצל הישראלי</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      font-family: sans-serif;
+      background: #f8f8f8;
+    }
+    #channelButtons {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      padding: 10px;
+      justify-content: center;
+      background: #fff;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .channel-btn {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      border: 1px solid #ccc;
+      background: #eee;
+      border-radius: 4px;
+      padding: 4px;
+      font-size: 12px;
+      cursor: pointer;
+      transition: background 0.2s;
+      width: 120px;
+      overflow: hidden;
+      position: relative;
+    }
+    .channel-btn:hover {
+      background: #ddd;
+    }
+    .thumbnail {
+      width: 100%;
+      height: 67px;
+      object-fit: cover;
+      background: #ccc;
+      margin-bottom: 4px;
+    }
+    .progress-bar {
+      position: absolute;
+      top: 0;
+      right: 0;
+      height: 1px;
+      background-color: green;
+      width: 100%;
+    }
+    #videoWrapper {
+      flex-grow: 1;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      overflow: hidden;
+      box-sizing: border-box;
+      width: 100%;
+    }
+    #videoPlayer {
+      display: block;
+    }
+    canvas {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="channelButtons"></div>
+  <div id="videoWrapper">
+    <video id="videoPlayer" controls playsinline autoplay></video>
+  </div>
+  <canvas id="thumbCanvas"></canvas>
+
+  <script src="//cdn.jsdelivr.net/npm/hls.js@latest/dist/hls.min.js"></script>
+  <script>
+    const sources = [
+      'https://reshet.g-mana.live/media/87f59c77-03f6-4bad-a648-897e095e7360/mainManifest.m3u8',
+      'https://d1zqtf09wb8nt5.cloudfront.net/livehls/oil/freetv/live/keshet_12_hevc/live.livx/playlist.m3u8?fmp4&renditions&dvr=14400000',
+      'https://kan11w.media.kan.org.il/hls/live/2105694/2105694/master.m3u8',
+      'https://r.il.cdn-redge.media/livehls/oil/calcala/live/channel10/live.livx/playlist.m3u8?dvr=14400000',
+      'https://bcovlive-a.akamaihd.net/d89ede8094c741b7924120b27764153c/eu-central-1/5377161796001/playlist.m3u8',
+      'https://channel14-live-consume.immergo.tv/output/2/streamPlaylist-archive.m3u8',
+    ];
+
+    const channelNames = ['רשת 13', 'קשת 12', 'כאן 11', 'ערוץ הכלכלה', 'i24News', 'עכשיו 14'];
+
+    const videoPlayer = document.getElementById('videoPlayer');
+    const buttonContainer = document.getElementById('channelButtons');
+    const canvas = document.getElementById('thumbCanvas');
+    const ctx = canvas.getContext('2d');
+
+    const previews = [];
+    const updateInterval = 10000; // 10 seconds
+    const placeholderImage = 'https://via.placeholder.com/160x90?text=Loading';
+
+    // Create channel buttons
+    channelNames.forEach((name, index) => {
+      const btn = document.createElement('div');
+      btn.className = 'channel-btn';
+
+      const progress = document.createElement('div');
+      progress.className = 'progress-bar';
+
+      const img = document.createElement('img');
+      img.className = 'thumbnail';
+      img.src = placeholderImage;
+
+      const label = document.createElement('span');
+      label.textContent = name;
+
+      btn.appendChild(progress);
+      btn.appendChild(img);
+      btn.appendChild(label);
+      buttonContainer.appendChild(btn);
+
+      btn.addEventListener('click', () => {
+        if (Hls.isSupported()) {
+          const hls = new Hls();
+          hls.loadSource(sources[index]);
+          hls.attachMedia(videoPlayer);
+          hls.on(Hls.Events.MANIFEST_PARSED, () => {
+            videoPlayer.play();
+          });
+        } else {
+          videoPlayer.src = sources[index];
+        }
+      });
+
+      previews.push({ img, index, progressBar: progress, lastUpdated: 0 });
+    });
+
+    async function generateThumbnail(index) {
+      return new Promise((resolve) => {
+        const tempVideo = document.createElement('video');
+        tempVideo.muted = true;
+        tempVideo.playsInline = true;
+        tempVideo.crossOrigin = 'anonymous';
+        tempVideo.style.display = 'none';
+
+        document.body.appendChild(tempVideo);
+        const hls = new Hls({ autoStartLoad: true });
+        hls.loadSource(sources[index]);
+        hls.attachMedia(tempVideo);
+
+        let done = false;
+
+        tempVideo.addEventListener('loadeddata', () => {
+          setTimeout(() => {
+            if (done) return;
+            try {
+              const w = 160, h = 90;
+              canvas.width = w;
+              canvas.height = h;
+              ctx.drawImage(tempVideo, 0, 0, w, h);
+              const dataURL = canvas.toDataURL('image/jpeg');
+              previews[index].img.src = dataURL;
+              previews[index].lastUpdated = Date.now();
+            } catch (err) {
+              console.warn("Thumbnail failed for channel", index);
+            }
+            cleanup();
+          }, 800); // Short delay to allow video frame to load
+        });
+
+        const cleanup = () => {
+          if (done) return;
+          done = true;
+          hls.destroy();
+          tempVideo.pause();
+          tempVideo.remove();
+          resolve();
+        };
+
+        tempVideo.addEventListener('error', cleanup);
+        setTimeout(cleanup, 5000);
+      });
+    }
+
+    async function generateAllThumbnails() {
+      const now = Date.now();
+      for (let i = 0; i < previews.length; i++) {
+        previews[i].lastUpdated = now;
+        await generateThumbnail(i);
+      }
+    }
+
+    function updateProgressBars() {
+      const now = Date.now();
+      previews.forEach(preview => {
+        const elapsed = now - preview.lastUpdated;
+        const ratio = 1 - Math.min(1, elapsed / updateInterval);
+        preview.progressBar.style.width = `${100 * ratio}%`;
+      });
+    }
+
+    function startThumbnailLoop() {
+      setTimeout(async () => {
+        await generateAllThumbnails();
+        setInterval(generateAllThumbnails, updateInterval);
+      }, 1000); // Initial delay for smooth startup
+    }
+
+    setInterval(updateProgressBars, 100); // Smooth progress bar updates
+
+    function scaleVideo() {
+      const padding = 40;
+      const vw = videoWrapper.clientWidth - padding;
+      const vh = videoWrapper.clientHeight - padding;
+      const videoW = videoPlayer.videoWidth;
+      const videoH = videoPlayer.videoHeight;
+
+      if (videoW && videoH) {
+        const scale = Math.min(vw / videoW, vh / videoH);
+        videoPlayer.style.width = `${videoW * scale}px`;
+        videoPlayer.style.height = `${videoH * scale}px`;
+      }
+    }
+
+    videoPlayer.addEventListener('loadedmetadata', scaleVideo);
+    window.addEventListener('resize', scaleVideo);
+
+    startThumbnailLoop();
+  </script>
+
+</body>
+</html>
