@@ -41,7 +41,6 @@
             justify-content: center;
             align-items: center;
             overflow: hidden;
-            padding: 10px;
             box-sizing: border-box;
             width: 100%;
         }
@@ -82,8 +81,9 @@
         const videoWrapper = document.getElementById('videoWrapper');
 
         function scaleVideo() {
-            const vw = videoWrapper.clientWidth;
-            const vh = videoWrapper.clientHeight;
+            const padding = 40; // pixels of padding around the video
+            const vw = videoWrapper.clientWidth - padding;
+            const vh = videoWrapper.clientHeight - padding;
             const videoW = videoPlayer.videoWidth;
             const videoH = videoPlayer.videoHeight;
 
