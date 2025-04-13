@@ -5,26 +5,58 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>המסך המפוצל הישראלי</title>
     <style>
-        body { margin: 0; display: flex; flex-direction: column; align-items: center; }
-        select { margin: 20px; padding: 10px; }
-        video { width: 80%; height: auto; }
+        html, body {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            font-family: sans-serif;
+            background: #f8f8f8;
+        }
+        #channelButtons {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            padding: 10px;
+            justify-content: center;
+            background: #fff;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        #channelButtons button {
+            padding: 6px 12px;
+            font-size: 14px;
+            cursor: pointer;
+            border: 1px solid #ccc;
+            background: #eee;
+            border-radius: 4px;
+            transition: background 0.2s;
+        }
+        #channelButtons button:hover {
+            background: #ddd;
+        }
+        #videoWrapper {
+            flex-grow: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+            box-sizing: border-box;
+            width: 100%;
+        }
+        video {
+            display: block;
+        }
     </style>
 </head>
 <body>
 
-    <h1>בחר ערוץ</h1>
-    <select id="channelSelect">
-        <option value="">בחר ערוץ</option>
-        <option value="0">רשת 13</option>
-        <option value="1">קשת 12</option>
-        <option value="2">כאן 11</option>
-        <option value="3">ערוץ הכלכלה</option>
-        <option value="4">i24News</option>
-        <option value="5">עכשיו 14</option>
-    </select>
+    <div id="channelButtons"></div>
+    <div id="videoWrapper">
+        <video id="videoPlayer" controls playsinline autoplay></video>
+    </div>
 
-    <video id="videoPlayer" controls playsinline autoplay /*muted*/></video>
-
+    <script src="//cdn.jsdelivr.net/npm/hls.js@latest/dist/hls.min.js"></script>
     <script>
         const sources = [
             'https://reshet.g-mana.live/media/87f59c77-03f6-4bad-a648-897e095e7360/mainManifest.m3u8',
@@ -35,28 +67,53 @@
             'https://channel14-live-consume.immergo.tv/output/2/streamPlaylist-archive.m3u8',
         ];
 
-        const videoPlayer = document.getElementById('videoPlayer');
-        const channelSelect = document.getElementById('channelSelect');
+        const channelNames = [
+            'רשת 13',
+            'קשת 12',
+            'כאן 11',
+            'ערוץ הכלכלה',
+            'i24News',
+            'עכשיו 14'
+        ];
 
-        channelSelect.addEventListener('change', function() {
-            const selectedIndex = this.value;
-            if (selectedIndex !== "") {
-                // Load the selected channel
-                const selectedSource = sources[selectedIndex];
+        const videoPlayer = document.getElementById('videoPlayer');
+        const buttonContainer = document.getElementById('channelButtons');
+        const videoWrapper = document.getElementById('videoWrapper');
+
+        function scaleVideo() {
+            const padding = 40; // pixels of padding around the video
+            const vw = videoWrapper.clientWidth - padding;
+            const vh = videoWrapper.clientHeight - padding;
+            const videoW = videoPlayer.videoWidth;
+            const videoH = videoPlayer.videoHeight;
+
+            if (videoW && videoH) {
+                const scale = Math.min(vw / videoW, vh / videoH);
+                videoPlayer.style.width = `${videoW * scale}px`;
+                videoPlayer.style.height = `${videoH * scale}px`;
+            }
+        }
+
+        channelNames.forEach((name, index) => {
+            const btn = document.createElement('button');
+            btn.textContent = name;
+            btn.addEventListener('click', () => {
                 if (Hls.isSupported()) {
                     const hls = new Hls();
-                    hls.loadSource(selectedSource);
+                    hls.loadSource(sources[index]);
                     hls.attachMedia(videoPlayer);
+                    hls.on(Hls.Events.MANIFEST_PARSED, () => {
+                        videoPlayer.play();
+                    });
                 } else {
-                    videoPlayer.src = selectedSource;
+                    videoPlayer.src = sources[index];
                 }
-            } else {
-                // Clear the video if no channel is selected
-                videoPlayer.src = '';
-            }
+            });
+            buttonContainer.appendChild(btn);
         });
-    </script>
 
-    <script src="//cdn.jsdelivr.net/npm/hls.js@latest/dist/hls.min.js"></script>
+        videoPlayer.addEventListener('loadedmetadata', scaleVideo);
+        window.addEventListener('resize', scaleVideo);
+    </script>
 </body>
 </html>
